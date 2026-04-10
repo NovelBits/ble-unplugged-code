@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+"""
+CTF Challenge Setup Script
+
+Configures a BleuIO dongle as the challenge server for CTF lessons 12.2 through
+12.6. Students run this script instead of pasting raw AT commands so that hex
+encoded flag values never appear on their screen, which would spoil the
+challenge for hex literate students.
+
+Usage:
+    python3 scripts/ctf-challenge-setup.py <challenge_number> [--port PORT]
+
+Examples:
+    python3 scripts/ctf-challenge-setup.py 2
+    python3 scripts/ctf-challenge-setup.py 3 --port /dev/cu.usbmodem4048FDEAED1A1
+
+After the script finishes, unplug and replug the dongle (or send ATR) so the
+AUTOEXEC commands run on boot. Do not open a serial terminal on the challenge
+server dongle after rebooting.
+"""
+
+import argparse
+import sys
+import time
+
+try:
+    import serial
+    from serial.tools import list_ports
+except ImportError:
+    print("ERROR: pyserial is not installed. Install it with: pip install pyserial")
+    sys.exit(1)
+
+
+BAUD = 57600
+TIMEOUT = 2
+
+
+# Challenge titles (safe to display).
+CHALLENGE_TITLES = {
+    2: "Hidden Device",
+    3: "GATT Treasure Hunt",
+    4: "Crack the Code",
+    5: "Speed Run",
+    6: "The Impostor",
+}
+
+
+# AUTOEXEC command lists pulled directly from docs/ctf-challenge-design.md.
+# These are intentionally kept inside function scope so the hex bytes are not
+# printed or dumped in help output.
+
+def _commands_challenge_2():
+    return [
+        "AT+AUTOEXEC=AT+PERIPHERAL",
+        "AT+AUTOEXEC=AT+ADVDATA=0709536861646F7712FF0059464C41477B52465F48554E5445527D",
+        "AT+AUTOEXEC=AT+ADVSTART=0;500;600;0;",
+    ]
+
+
+def _commands_challenge_3():
+    return [
+        "AT+AUTOEXEC=AT+PERIPHERAL",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=0=UUID=12345678-1234-1234-1234-123456789abc",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=UUID=0001",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PERM=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=VALUE=FLAG{GA",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=UUID=0002",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PERM=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=VALUE=TT_MAST",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=3=UUID=0003",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=3=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=3=PERM=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=3=VALUE=ER}",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICESTART",
+        "AT+AUTOEXEC=AT+ADVDATA=0E0954726561737572655661756C74",
+        "AT+AUTOEXEC=AT+ADVSTART",
+    ]
+
+
+def _commands_challenge_4():
+    return [
+        "AT+AUTOEXEC=AT+PERIPHERAL",
+        "AT+AUTOEXEC=AT+GAPIOCAP=3",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=0=UUID=aabbccdd-1122-3344-5566-778899aabbcc",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=UUID=0010",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PERM=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=VALUE=Pair with me to unlock the secret",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=UUID=0020",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PERM=E",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=VALUE=FLAG{PAIRED_UP}",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICESTART",
+        "AT+AUTOEXEC=AT+ADVDATA=0A095661756C744C6F636B",
+        "AT+AUTOEXEC=AT+ADVSTART",
+    ]
+
+
+def _commands_challenge_5():
+    return [
+        "AT+AUTOEXEC=AT+PERIPHERAL",
+        "AT+AUTOEXEC=AT+MTU=512",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=0=UUID=55550000-5555-5555-5555-555555555555",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=UUID=0100",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PERM=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=LEN=250",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=VALUE=This data is 80 chars long and you need a bigger MTU to read it all in one shot!!",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=UUID=0200",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PERM=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=LEN=250",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=VALUE=FLAG{SPEED_DEMON}",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICESTART",
+        "AT+AUTOEXEC=AT+ADVDATA=0A09537065656452616365",
+        "AT+AUTOEXEC=AT+ADVSTART",
+    ]
+
+
+def _commands_challenge_6():
+    return [
+        "AT+AUTOEXEC=AT+PERIPHERAL",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=0=UUID=deadbeef-cafe-face-babe-0123456789ab",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=UUID=0001",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PROP=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PERM=R",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=VALUE=FLAG{TRUST_UUID}",
+        "AT+AUTOEXEC=AT+CUSTOMSERVICESTART",
+        "AT+AUTOEXEC=AT+ADVDATA=080946697442616E641107AB8967452301BEBACEFAFECAEFBEADDE",
+        "AT+AUTOEXEC=AT+ADVSTART",
+    ]
+
+
+CHALLENGE_COMMANDS = {
+    2: _commands_challenge_2,
+    3: _commands_challenge_3,
+    4: _commands_challenge_4,
+    5: _commands_challenge_5,
+    6: _commands_challenge_6,
+}
+
+
+def detect_port():
+    """Auto-detect a connected BleuIO dongle by USB VID/PID or description."""
+    candidates = []
+    for p in list_ports.comports():
+        desc = (p.description or "").lower()
+        manuf = (p.manufacturer or "").lower()
+        if "bleuio" in desc or "bleuio" in manuf or "smart sensor devices" in manuf:
+            candidates.append(p.device)
+        elif "usbmodem" in p.device.lower():
+            candidates.append(p.device)
+
+    if not candidates:
+        return None
+    return candidates[0]
+
+
+def send_silent(ser, cmd):
+    """Send an AT command and consume its response without printing it."""
+    ser.reset_input_buffer()
+    ser.write((cmd + "\r").encode())
+
+    lines = []
+    start = time.time()
+    while time.time() - start < TIMEOUT:
+        if ser.in_waiting:
+            line = ser.readline().decode("utf-8", errors="replace").strip()
+            if line:
+                lines.append(line)
+            if line in ("OK", "ERROR"):
+                break
+        else:
+            time.sleep(0.05)
+
+    return lines
+
+
+def run_reset(ser):
+    """Clear any existing AUTOEXEC and custom service configuration."""
+    send_silent(ser, "AT+CLRAUTOEXEC")
+    send_silent(ser, "AT+CUSTOMSERVICERESET")
+
+
+def run_challenge(ser, number):
+    """Send all AUTOEXEC commands for the given challenge number."""
+    commands = CHALLENGE_COMMANDS[number]()
+    ok = 0
+    for cmd in commands:
+        result = send_silent(ser, cmd)
+        if any(line == "OK" for line in result):
+            ok += 1
+        elif any(line == "ERROR" for line in result):
+            print(f"  Command failed. Aborting. ({ok}/{len(commands)} succeeded)")
+            return False
+    return ok == len(commands)
+
+
+def _make_setup_func(number):
+    def setup(ser):
+        print(f"Loading Challenge {number}: {CHALLENGE_TITLES[number]}...", end=" ", flush=True)
+        run_reset(ser)
+        if run_challenge(ser, number):
+            print("Done!")
+            return True
+        print("Failed.")
+        return False
+    setup.__name__ = f"setup_challenge_{number}"
+    return setup
+
+
+setup_challenge_2 = _make_setup_func(2)
+setup_challenge_3 = _make_setup_func(3)
+setup_challenge_4 = _make_setup_func(4)
+setup_challenge_5 = _make_setup_func(5)
+setup_challenge_6 = _make_setup_func(6)
+
+SETUP_FUNCS = {
+    2: setup_challenge_2,
+    3: setup_challenge_3,
+    4: setup_challenge_4,
+    5: setup_challenge_5,
+    6: setup_challenge_6,
+}
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Set up a BleuIO dongle as a CTF challenge server without spoiling flag values.",
+    )
+    parser.add_argument(
+        "challenge",
+        type=int,
+        choices=sorted(CHALLENGE_COMMANDS.keys()),
+        help="Challenge number (2 through 6).",
+    )
+    parser.add_argument(
+        "--port",
+        default=None,
+        help="Serial port for the BleuIO dongle. If omitted, the script will try to auto-detect one.",
+    )
+    args = parser.parse_args()
+
+    port = args.port or detect_port()
+    if not port:
+        print("ERROR: Could not auto-detect a BleuIO dongle.")
+        print("Plug in the challenge server dongle and try again, or pass --port /dev/...")
+        sys.exit(1)
+
+    print(f"Using dongle on port: {port}")
+
+    try:
+        ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
+    except serial.SerialException as exc:
+        print(f"ERROR: Could not open {port}: {exc}")
+        sys.exit(1)
+
+    time.sleep(0.3)
+
+    try:
+        # Wake the dongle.
+        send_silent(ser, "AT")
+        success = SETUP_FUNCS[args.challenge](ser)
+    finally:
+        ser.close()
+
+    if not success:
+        sys.exit(2)
+
+    print()
+    print("Challenge server is configured.")
+    print("Next step: unplug and replug the dongle (or send ATR) so AUTOEXEC runs on boot.")
+    print("Do NOT open a serial terminal on the challenge server dongle after rebooting.")
+
+
+if __name__ == "__main__":
+    main()

@@ -4,3 +4,5 @@ __pycache__/
 *.swp
 .env
 venv/
+__pycache__/
+*.pyc
