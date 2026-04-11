@@ -8,6 +8,7 @@ Exercise files for the [Bluetooth LE Unplugged](https://academy.novelbits.io) co
 - **Two BleuIO USB dongles** (included with your course bundle)
 - **pyserial** for serial communication (`pip install pyserial`)
 - **bleuio** library for Module 11 exercise 04 (`pip install bleuio`)
+- **nrfutil** for Module 13 sniffer firmware flashing (Expert tier only)
 
 ## Setup
 
@@ -45,6 +46,7 @@ Each exercise directory contains:
 |-----------|--------|-------------|
 | `module-11-python-automation/` | Python Automation Foundations | Serial communication, scanning, connecting, data logging, error handling |
 | `module-12-ctf/` | Capture the Flag | CTF challenge setup script for the Bluetooth LE security challenges |
+| `module-13-sniffer/` | Packet Analysis (Expert) | Sniffer firmware flasher and hex file for the Raytac nRF52840 dongle |
 
 ## Important Notes
 
