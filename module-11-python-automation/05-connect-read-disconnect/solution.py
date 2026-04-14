@@ -16,7 +16,7 @@ import time
 # === Configuration ===
 TARGET_NAME = 'PERIPHERAL'
 SCAN_DURATION = 5
-CHAR_UUID = '12345678-1234-1234-1234-123456789abd'
+CHAR_UUID = '12340002-5678-9abc-def0-123456789abc'
 
 
 def find_target(port, target_name, scan_duration=5):
