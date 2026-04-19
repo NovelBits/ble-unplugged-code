@@ -61,19 +61,24 @@ def open_bleuio(port_name=None, baud=57600):
     return port
 
 
-def send_command(port, command, timeout=2, quiet_period=0.2):
+def send_command(port, command, timeout=2, quiet_period=0.3):
     """Send an AT command and return the response lines.
 
-    Reads until either the timeout elapses OR a quiet period passes
-    with no new data. Cannot break early on 'OK' because some AT
-    commands (notably AT+GETMAC) emit 'OK' *before* the actual
-    data line, so an early break would lose the data.
+    Termination logic:
+      - If we see 'OK' or 'ERROR', wait for a quiet_period to capture any
+        trailing data (some commands like AT+GETMAC emit 'OK' BEFORE the
+        actual data, so we can't break right when OK arrives).
+      - If we don't see a clear terminator (e.g. AT+GAPCONNECT, which
+        emits 'Trying to connect...' then a multi-second silent gap then
+        'CONNECTED.'), wait the full timeout. Don't bail out on quiet
+        periods alone or you'll miss late events.
 
     Args:
         port: An open serial.Serial connection
         command: The AT command string (without \\r)
         timeout: Maximum seconds to wait for a complete response
-        quiet_period: Seconds of no-new-data that means "response done"
+        quiet_period: Seconds of no-new-data that signal "response done"
+                      (only applied AFTER an OK/ERROR terminator was seen)
 
     Returns:
         A list of response lines (echo and terminators stripped)
@@ -84,6 +89,7 @@ def send_command(port, command, timeout=2, quiet_period=0.2):
     response_lines = []
     start = time.time()
     last_data_time = start
+    saw_terminator = False
 
     while time.time() - start < timeout:
         if port.in_waiting:
@@ -91,10 +97,10 @@ def send_command(port, command, timeout=2, quiet_period=0.2):
             if line and line != command:
                 response_lines.append(line)
                 last_data_time = time.time()
+                if line in ('OK', 'ERROR'):
+                    saw_terminator = True
         else:
-            # No data right now. Exit early only if we've already seen some
-            # response AND enough quiet time has passed.
-            if response_lines and (time.time() - last_data_time) >= quiet_period:
+            if saw_terminator and (time.time() - last_data_time) >= quiet_period:
                 break
             time.sleep(0.05)
 

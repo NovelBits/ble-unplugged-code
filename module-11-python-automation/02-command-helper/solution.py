@@ -11,19 +11,23 @@ import serial
 import time
 
 
-def send_command(port, command, timeout=2, quiet_period=0.2):
+def send_command(port, command, timeout=2, quiet_period=0.3):
     """Send an AT command and return the response lines.
 
-    Reads until either the timeout elapses OR a quiet period passes
-    with no new data. We can't break early on 'OK' because some AT
-    commands (notably AT+GETMAC) emit 'OK' *before* the actual data,
-    so an early break would lose the trailing data line.
+    Termination logic:
+      - If we see 'OK' or 'ERROR', wait quiet_period to capture trailing
+        data (AT+GETMAC emits OK BEFORE the MAC line, so we can't bail
+        out the moment OK arrives).
+      - If no clear terminator arrives (e.g. AT+GAPCONNECT prints
+        'Trying to connect...' then has a multi-second silent gap before
+        'CONNECTED.'), wait the full timeout instead of bailing out on
+        quiet periods.
 
     Args:
         port: An open serial.Serial connection
         command: The AT command string (without \\r)
         timeout: Maximum seconds to wait for a complete response
-        quiet_period: Seconds of no-new-data that means "response done"
+        quiet_period: Quiet seconds after an OK/ERROR before exit
 
     Returns:
         A list of response lines (echo and terminators stripped)
@@ -34,6 +38,7 @@ def send_command(port, command, timeout=2, quiet_period=0.2):
     response_lines = []
     start = time.time()
     last_data_time = start
+    saw_terminator = False
 
     while time.time() - start < timeout:
         if port.in_waiting:
@@ -41,8 +46,10 @@ def send_command(port, command, timeout=2, quiet_period=0.2):
             if line and line != command:  # Skip echo
                 response_lines.append(line)
                 last_data_time = time.time()
+                if line in ('OK', 'ERROR'):
+                    saw_terminator = True
         else:
-            if response_lines and (time.time() - last_data_time) >= quiet_period:
+            if saw_terminator and (time.time() - last_data_time) >= quiet_period:
                 break
             time.sleep(0.05)
 
