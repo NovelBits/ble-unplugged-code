@@ -29,7 +29,7 @@ def find_target(port, target_name, scan_duration=5):
     send_command(port, 'ATASSN1')
 
     pattern = re.compile(
-        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)\s+Name:\s*(.*)'
+        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)(?:\s+\(([^)]*)\))?'
     )
 
     for attempt in range(MAX_RETRIES):

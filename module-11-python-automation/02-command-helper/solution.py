@@ -11,13 +11,19 @@ import serial
 import time
 
 
-def send_command(port, command, timeout=2):
+def send_command(port, command, timeout=2, quiet_period=0.2):
     """Send an AT command and return the response lines.
+
+    Reads until either the timeout elapses OR a quiet period passes
+    with no new data. We can't break early on 'OK' because some AT
+    commands (notably AT+GETMAC) emit 'OK' *before* the actual data,
+    so an early break would lose the trailing data line.
 
     Args:
         port: An open serial.Serial connection
         command: The AT command string (without \\r)
         timeout: Maximum seconds to wait for a complete response
+        quiet_period: Seconds of no-new-data that means "response done"
 
     Returns:
         A list of response lines (echo and terminators stripped)
@@ -27,15 +33,17 @@ def send_command(port, command, timeout=2):
 
     response_lines = []
     start = time.time()
+    last_data_time = start
 
     while time.time() - start < timeout:
         if port.in_waiting:
             line = port.readline().decode('utf-8', errors='replace').strip()
             if line and line != command:  # Skip echo
                 response_lines.append(line)
-            if line in ('OK', 'ERROR'):
-                break
+                last_data_time = time.time()
         else:
+            if response_lines and (time.time() - last_data_time) >= quiet_period:
+                break
             time.sleep(0.05)
 
     return response_lines

@@ -61,16 +61,19 @@ def open_bleuio(port_name=None, baud=57600):
     return port
 
 
-def send_command(port, command, timeout=2):
+def send_command(port, command, timeout=2, quiet_period=0.2):
     """Send an AT command and return the response lines.
 
-    Handles buffer clearing, command sending, echo stripping,
-    timeout detection, and multi-line response collection.
+    Reads until either the timeout elapses OR a quiet period passes
+    with no new data. Cannot break early on 'OK' because some AT
+    commands (notably AT+GETMAC) emit 'OK' *before* the actual
+    data line, so an early break would lose the data.
 
     Args:
         port: An open serial.Serial connection
         command: The AT command string (without \\r)
         timeout: Maximum seconds to wait for a complete response
+        quiet_period: Seconds of no-new-data that means "response done"
 
     Returns:
         A list of response lines (echo and terminators stripped)
@@ -80,15 +83,19 @@ def send_command(port, command, timeout=2):
 
     response_lines = []
     start = time.time()
+    last_data_time = start
 
     while time.time() - start < timeout:
         if port.in_waiting:
             line = port.readline().decode('utf-8', errors='replace').strip()
             if line and line != command:
                 response_lines.append(line)
-            if line in ('OK', 'ERROR'):
-                break
+                last_data_time = time.time()
         else:
+            # No data right now. Exit early only if we've already seen some
+            # response AND enough quiet time has passed.
+            if response_lines and (time.time() - last_data_time) >= quiet_period:
+                break
             time.sleep(0.05)
 
     return response_lines

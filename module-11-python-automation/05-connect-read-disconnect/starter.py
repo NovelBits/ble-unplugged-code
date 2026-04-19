@@ -33,7 +33,7 @@ def find_target(port, target_name, scan_duration=5):
     raw = send_command(port, f'AT+GAPSCAN={scan_duration}', timeout=scan_duration + 3)
 
     pattern = re.compile(
-        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)\s+Name:\s*(.*)'
+        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)(?:\s+\(([^)]*)\))?'
     )
 
     for line in raw:

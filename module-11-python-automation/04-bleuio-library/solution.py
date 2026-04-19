@@ -33,10 +33,11 @@ print(f"Response: {resp.Rsp}")
 print(f"End:      {resp.End}")
 
 # Extract firmware version
+# In bleuio library v1.7.5+, the firmware field is 'fwVer' (not 'Firmware Version').
 firmware = 'Unknown'
 for item in resp.Rsp:
-    if 'Firmware Version' in item:
-        firmware = item['Firmware Version']
+    if 'fwVer' in item:
+        firmware = item['fwVer']
 print(f"Firmware: {firmware}")
 
 

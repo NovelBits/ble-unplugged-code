@@ -43,18 +43,24 @@ def parse_scan_results(raw_lines):
         address, address_type, rssi, name
     """
     devices = []
+    # BleuIO scan lines look like:
+    #   [01] Device: [0]10:CA:BF:0F:81:71  RSSI: -68
+    #   [02] Device: [0]40:48:FD:EA:ED:1A  RSSI: -13 (PERIPHERAL)
+    # The name (when ATASSN=1) appears in parentheses after RSSI.
     pattern = re.compile(
-        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)\s+Name:\s*(.*)'
+        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)'
+        r'(?:\s+\(([^)]*)\))?'
     )
 
     for line in raw_lines:
         match = pattern.match(line)
         if match:
+            name = match.group(4)
             device = {
                 'address_type': 'public' if match.group(1) == '0' else 'random',
                 'address': match.group(2).upper(),
                 'rssi': int(match.group(3)),
-                'name': match.group(4).strip() or '(unknown)',
+                'name': name.strip() if name else '(unknown)',
             }
             devices.append(device)
 

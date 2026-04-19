@@ -28,8 +28,10 @@ def find_target(port, target_name, scan_duration=5):
     send_command(port, 'AT+CENTRAL')
     send_command(port, 'ATASSN1')
 
+    # BleuIO puts device names in parentheses after RSSI (with ATASSN=1).
     pattern = re.compile(
-        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)\s+Name:\s*(.*)'
+        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)'
+        r'(?:\s+\(([^)]*)\))?'
     )
 
     for attempt in range(MAX_RETRIES):
@@ -38,7 +40,8 @@ def find_target(port, target_name, scan_duration=5):
 
         for line in raw:
             match = pattern.match(line)
-            if match and match.group(4).strip().upper() == target_name.upper():
+            name = match.group(4) if match else None
+            if match and name and name.strip().upper() == target_name.upper():
                 addr = f"[{match.group(1)}]{match.group(2)}"
                 print(f"Found '{target_name}' at {addr}")
                 return addr

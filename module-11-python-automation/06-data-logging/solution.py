@@ -37,14 +37,17 @@ def find_and_connect(port, target_name, scan_duration=5):
     print(f"Scanning for '{target_name}'...")
     raw = send_command(port, f'AT+GAPSCAN={scan_duration}', timeout=scan_duration + 3)
 
+    # BleuIO puts device names in parentheses after RSSI (with ATASSN=1).
     pattern = re.compile(
-        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)\s+Name:\s*(.*)'
+        r'\[\d+\]\s+Device:\s+\[(\d)\]([0-9A-Fa-f:]{17})\s+RSSI:\s+(-?\d+)'
+        r'(?:\s+\(([^)]*)\))?'
     )
 
     address = None
     for line in raw:
         match = pattern.match(line)
-        if match and match.group(4).strip().upper() == target_name.upper():
+        name = match.group(4) if match else None
+        if match and name and name.strip().upper() == target_name.upper():
             addr_type = match.group(1)
             addr = match.group(2)
             address = f"[{addr_type}]{addr}"

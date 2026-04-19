@@ -39,7 +39,9 @@ def parse_scan_results(raw_lines):
     """Parse raw scan output into structured device records.
 
     Each scan result line looks like:
-        [01] Device: [0]50:65:83:C9:A3:71 RSSI: -42 Name: PERIPHERAL
+        [01] Device: [0]50:65:83:C9:A3:71  RSSI: -42 (PERIPHERAL)
+    The device name appears in parentheses after RSSI (when ATASSN=1).
+    Lines without a name omit the parenthesized portion entirely.
 
     Returns:
         A list of dictionaries, each with keys:
