@@ -54,7 +54,15 @@ def find_target(port, target_name, scan_duration=5):
 
 
 def connect_with_retry(port, address):
-    """Connect with exponential backoff."""
+    """Connect with exponential backoff.
+
+    A failed AT+GAPCONNECT (no CONNECTED. event before timeout) leaves the
+    dongle in "Busy trying to connect" state. Without AT+CANCELCONNECT to
+    abort the in-flight attempt, every subsequent connect command fails
+    with "Busy" and the retry loop achieves nothing. We send CANCELCONNECT
+    after each failed attempt so the next iteration starts from a clean
+    state.
+    """
     for attempt in range(MAX_RETRIES):
         print(f"Connection attempt {attempt + 1} of {MAX_RETRIES}...")
         response = send_command(port, f'AT+GAPCONNECT={address}', timeout=10)
@@ -64,6 +72,9 @@ def connect_with_retry(port, address):
                 print("Connected. Waiting for service discovery...")
                 time.sleep(3)
                 return True
+
+        # Failed attempt: clear the in-flight connect so the next retry can fire.
+        send_command(port, 'AT+CANCELCONNECT', timeout=2)
 
         if attempt < MAX_RETRIES - 1:
             delay = RETRY_DELAY * (2 ** attempt)
