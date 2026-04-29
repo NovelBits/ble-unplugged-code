@@ -19,7 +19,9 @@ python3 ctf-challenge-setup.py <challenge_number> [--port PORT]
 python3 ctf-challenge-setup.py 2
 
 # Set up Challenge 3 with an explicit port
-python3 ctf-challenge-setup.py 3 --port /dev/cu.usbmodem4048FDEAED1A1
+python3 ctf-challenge-setup.py 3 --port /dev/cu.usbmodem4048FDEAED1A1   # macOS
+python3 ctf-challenge-setup.py 3 --port /dev/ttyACM0                    # Linux
+python3 ctf-challenge-setup.py 3 --port COM4                            # Windows
 ```
 
 ### Available Challenges

@@ -40,7 +40,7 @@ CHALLENGE_TITLES = {
     2: "Hidden Device",
     3: "GATT Treasure Hunt",
     4: "Crack the Code",
-    5: "Speed Run",
+    5: "The Whisper",
     6: "The Impostor",
 }
 
@@ -109,23 +109,22 @@ def _commands_challenge_4():
 
 
 def _commands_challenge_5():
-    # Already had LEN before VALUE; AT+ADVDATA needs colon-separated hex.
+    # The Whisper: split flag between AT+ADVDATA and AT+ADVRESP — only
+    # ACTIVE scanners retrieve the scan response, so a passive scan only
+    # gets half the flag. The whole point is to teach the distinction
+    # between the advertising packet and the scan response packet.
+    #
+    # ADVDATA bytes: name "Whisper" (08:09:57:68:69:73:70:65:72) +
+    #                manufacturer-specific (length 0D, type FF, company
+    #                0059, payload "FLAG{ACTIV").
+    # ADVRESP bytes: manufacturer-specific (length 0A, type FF, company
+    #                0059, payload "E_EYES}").
+    #
+    # Combining the two payloads in order yields FLAG{ACTIVE_EYES}.
     return [
         "AT+AUTOEXEC=AT+PERIPHERAL",
-        "AT+AUTOEXEC=AT+MTU=512",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=0=UUID=55550000-5555-5555-5555-555555555555",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=UUID=0100",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PROP=R",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=PERM=R",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=LEN=250",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=1=VALUE=This data is 80 chars long and you need a bigger MTU to read it all in one shot!!",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=UUID=0200",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PROP=R",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=PERM=R",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=LEN=250",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICE=2=VALUE=FLAG{SPEED_DEMON}",
-        "AT+AUTOEXEC=AT+CUSTOMSERVICESTART",
-        "AT+AUTOEXEC=AT+ADVDATA=0A:09:53:70:65:65:64:52:61:63:65",
+        "AT+AUTOEXEC=AT+ADVDATA=08:09:57:68:69:73:70:65:72:0D:FF:00:59:46:4C:41:47:7B:41:43:54:49:56",
+        "AT+AUTOEXEC=AT+ADVRESP=0A:FF:00:59:45:5F:45:59:45:53:7D",
         "AT+AUTOEXEC=AT+ADVSTART",
     ]
 
