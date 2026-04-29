@@ -75,25 +75,36 @@ def run_cmd(args, capture=True):
 
 
 def find_dfu_port(nrfutil):
-    """Detect the dongle's serial port in DFU mode."""
+    """Detect the dongle's serial port in DFU mode.
+
+    Parses `nrfutil device list` output and returns the Ports value
+    only for entries whose Product field is 'Open DFU Bootloader'.
+    This prevents accidentally returning a BleuIO or other Nordic
+    device's port when the student has multiple Nordic-trait USB
+    devices plugged in. Without this filter, the flasher could try
+    to write sniffer firmware over the wrong dongle.
+    """
     output = run_cmd([nrfutil, 'device', 'list'])
 
-    # nrfutil device list shows ports for each device
-    # Look for serial port lines
-    ports = []
+    # Walk the output line-by-line, tracking whether the current
+    # device entry's Product line says 'Open DFU Bootloader'.
+    in_dfu_entry = False
     for line in output.splitlines():
-        # Match port paths: /dev/cu.*, /dev/ttyACM*, COM*
-        match = re.search(r'(/dev/\S+|COM\d+)', line)
-        if match:
-            port = match.group(1)
-            # On macOS, prefer cu. over tty.
-            if platform.system() == 'Darwin' and '/dev/tty.' in port:
-                port = port.replace('/dev/tty.', '/dev/cu.')
-            ports.append(port)
-
-    if not ports:
-        return None
-    return ports[0]
+        if line.startswith('Product') and 'Open DFU Bootloader' in line:
+            in_dfu_entry = True
+            continue
+        # Blank line separates device entries; reset state
+        if not line.strip():
+            in_dfu_entry = False
+            continue
+        if in_dfu_entry and line.startswith('Ports'):
+            match = re.search(r'(/dev/\S+|COM\d+)', line)
+            if match:
+                port = match.group(1)
+                if platform.system() == 'Darwin' and '/dev/tty.' in port:
+                    port = port.replace('/dev/tty.', '/dev/cu.')
+                return port
+    return None
 
 
 def main():
